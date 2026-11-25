@@ -1,0 +1,26 @@
+# 용사 좀 막아봐 게임 서버 감시: 10분마다 /health · /ready 를 확인한다.
+# 실패하면 이 작업이 실패로 끝나고, GitHub 이 저장소 주인에게 "workflow run failed" 메일을 보낸다
+# (docs/01-core/90 #14 — 서버가 응답하지 않는다는 알림).
+name: server-uptime
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 게임 서버 응답 확인
+        run: |
+          for path in /health /ready; do
+            ok=0
+            for try in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://yongsa.api.butterplace.kr$path" || true)
+              if [ "$code" = "200" ]; then ok=1; break; fi
+              echo "$path → $code (시도 $try)"; sleep 20
+            done
+            if [ "$ok" != 1 ]; then echo "::error::게임 서버 $path 가 응답하지 않는다"; exit 1; fi
+            echo "$path OK"
+          done
